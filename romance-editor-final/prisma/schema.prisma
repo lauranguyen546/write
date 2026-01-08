@@ -1,0 +1,88 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Project {
+  id           String       @id @default(uuid())
+  title        String
+  settingsJson String       // JSON: subgenre, heatLevel, tropes, povStyle, targetTone
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  manuscripts  Manuscript[]
+  issues       Issue[]
+  jobs         Job[]
+}
+
+model Manuscript {
+  id           String   @id @default(uuid())
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  originalText String   // Full text
+  createdAt    DateTime @default(now())
+  chunks       Chunk[]
+}
+
+model Chunk {
+  id           String     @id @default(uuid())
+  manuscriptId String
+  manuscript   Manuscript @relation(fields: [manuscriptId], references: [id], onDelete: Cascade)
+  index        Int        // Order in manuscript
+  text         String     // Chunk text
+  chapter      String?    // Chapter title/number if detected
+  scene        String?    // Scene identifier
+  startChar    Int        // Start position in original text
+  endChar      Int        // End position in original text
+  summaryJson  String?    // JSON: key events, characters, setting
+  issues       Issue[]
+}
+
+model Issue {
+  id          String     @id @default(uuid())
+  projectId   String
+  project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  chunkId     String?
+  chunk       Chunk?     @relation(fields: [chunkId], references: [id], onDelete: SetNull)
+  category    String     // developmental, character, scene, line, repetition
+  severity    String     // critical, major, minor, suggestion
+  title       String
+  description String
+  evidence    String?    // Quoted text showing the issue
+  suggestion  String?    // How to fix it
+  startChar   Int?       // Position in chunk
+  endChar     Int?       // Position in chunk
+  tagsJson    String?    // JSON: additional tags (character names, etc.)
+  createdAt   DateTime   @default(now())
+  revisions   Revision[]
+}
+
+model Revision {
+  id            String   @id @default(uuid())
+  issueId       String
+  issue         Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  originalText  String   // Text before revision
+  suggestedText String   // AI-generated rewrite
+  diffJson      String?  // JSON: diff data for display
+  status        String   @default("proposed") // proposed, accepted, rejected
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Job {
+  id           String   @id @default(uuid())
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type         String   // analysis, rewrite_generation
+  status       String   @default("pending") // pending, running, completed, failed
+  progress     Int      @default(0) // 0-100
+  resultJson   String?  // JSON: results or error info
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}

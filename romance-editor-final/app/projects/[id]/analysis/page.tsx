@@ -1,0 +1,331 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useParams } from 'next/navigation';
+import Link from 'next/link';
+import RewriteDrawer from '@/components/revision/RewriteDrawer';
+
+interface Issue {
+  id: string;
+  category: string;
+  severity: string;
+  title: string;
+  description: string;
+  evidence?: string;
+  suggestion?: string;
+  chunk?: {
+    chapter?: string;
+    scene?: string;
+  };
+  revisions?: Array<{ id: string; status: string }>;
+}
+
+export default function AnalysisPage() {
+  const params = useParams();
+  const projectId = params.id as string;
+  
+  const [loading, setLoading] = useState(true);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [jobStatus, setJobStatus] = useState<any>(null);
+  const [issues, setIssues] = useState<Issue[]>([]);
+  const [project, setProject] = useState<any>(null);
+  const [filterCategory, setFilterCategory] = useState<string>('');
+  const [filterSeverity, setFilterSeverity] = useState<string>('');
+  const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
+
+  useEffect(() => {
+    fetchProject();
+    fetchIssues();
+  }, [projectId, filterCategory, filterSeverity]);
+
+  useEffect(() => {
+    if (jobId && (jobStatus?.status === 'pending' || jobStatus?.status === 'running')) {
+      const interval = setInterval(checkJobStatus, 2000);
+      return () => clearInterval(interval);
+    }
+  }, [jobId, jobStatus]);
+
+  const fetchProject = async () => {
+    try {
+      const response = await fetch(`/api/projects/${projectId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setProject(data);
+      }
+    } catch (error) {
+      console.error('Error fetching project:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchIssues = async () => {
+    try {
+      const params = new URLSearchParams({ projectId });
+      if (filterCategory) params.append('category', filterCategory);
+      if (filterSeverity) params.append('severity', filterSeverity);
+      
+      const response = await fetch(`/api/issues?${params}`);
+      if (response.ok) {
+        const data = await response.json();
+        setIssues(data);
+      }
+    } catch (error) {
+      console.error('Error fetching issues:', error);
+    }
+  };
+
+  const startAnalysis = async () => {
+    if (!project?.manuscripts?.[0]) return;
+
+    setAnalyzing(true);
+    try {
+      const response = await fetch('/api/analysis/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId,
+          manuscriptId: project.manuscripts[0].id,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setJobId(data.jobId);
+      }
+    } catch (error) {
+      console.error('Error starting analysis:', error);
+      setAnalyzing(false);
+    }
+  };
+
+  const checkJobStatus = async () => {
+    if (!jobId) return;
+
+    try {
+      const response = await fetch(`/api/analysis/status/${jobId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setJobStatus(data);
+
+        if (data.status === 'completed') {
+          setAnalyzing(false);
+          fetchIssues();
+        } else if (data.status === 'failed') {
+          setAnalyzing(false);
+          alert('Analysis failed: ' + (data.result?.error || 'Unknown error'));
+        }
+      }
+    } catch (error) {
+      console.error('Error checking job status:', error);
+    }
+  };
+
+  const getSeverityColor = (severity: string) => {
+    const colors: { [key: string]: string } = {
+      critical: 'bg-red-100 text-red-800 border-red-300',
+      major: 'bg-orange-100 text-orange-800 border-orange-300',
+      minor: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+      suggestion: 'bg-blue-100 text-blue-800 border-blue-300',
+    };
+    return colors[severity] || colors.suggestion;
+  };
+
+  const handleRewriteAccept = () => {
+    fetchIssues(); // Refresh issues to show accepted status
+  };
+
+  const handleRewriteReject = () => {
+    // Just close, no refresh needed
+  };
+
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-12">
+        <p className="text-center">Loading...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Analysis</h1>
+          <p className="text-gray-600">{project?.title}</p>
+        </div>
+        <Link href={`/projects/${projectId}`} className="btn-secondary">
+          ← Back to Project
+        </Link>
+      </div>
+
+      {/* Analysis Control */}
+      <div className="card mb-6">
+        <h2 className="text-xl font-semibold mb-4">Editorial Analysis</h2>
+        
+        {analyzing ? (
+          <div className="space-y-3">
+            <div className="flex items-center space-x-3">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-romance-600"></div>
+              <span className="font-medium">
+                {jobStatus?.result?.message || 'Analyzing manuscript...'}
+              </span>
+            </div>
+            {jobStatus?.progress !== undefined && (
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div
+                  className="bg-romance-600 h-2 rounded-full transition-all"
+                  style={{ width: `${jobStatus.progress}%` }}
+                />
+              </div>
+            )}
+          </div>
+        ) : issues.length > 0 ? (
+          <div className="flex items-center justify-between">
+            <p className="text-gray-700">
+              Analysis complete. Found <strong>{issues.length} issues</strong>.
+            </p>
+            <button onClick={startAnalysis} className="btn-secondary">
+              Re-run Analysis
+            </button>
+          </div>
+        ) : (
+          <div>
+            <p className="text-gray-700 mb-4">
+              Run editorial analysis to identify issues and get AI-powered feedback.
+            </p>
+            <button onClick={startAnalysis} className="btn-primary">
+              Start Analysis
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Filters */}
+      {issues.length > 0 && (
+        <div className="card mb-6">
+          <h3 className="font-semibold mb-3">Filters</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Category
+              </label>
+              <select
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value)}
+                className="input-field"
+              >
+                <option value="">All Categories</option>
+                <option value="developmental">Developmental</option>
+                <option value="character">Character</option>
+                <option value="scene">Scene</option>
+                <option value="line">Line</option>
+                <option value="repetition">Repetition</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Severity
+              </label>
+              <select
+                value={filterSeverity}
+                onChange={(e) => setFilterSeverity(e.target.value)}
+                className="input-field"
+              >
+                <option value="">All Severities</option>
+                <option value="critical">Critical</option>
+                <option value="major">Major</option>
+                <option value="minor">Minor</option>
+                <option value="suggestion">Suggestion</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Issues List */}
+      {issues.length > 0 ? (
+        <div className="space-y-4">
+          {issues.map((issue) => (
+            <div key={issue.id} className="card">
+              <div className="flex items-start justify-between mb-2">
+                <div className="flex items-center space-x-2">
+                  <span
+                    className={`px-2 py-1 rounded text-xs font-medium ${getSeverityColor(
+                      issue.severity
+                    )}`}
+                  >
+                    {issue.severity}
+                  </span>
+                  <span className="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-700">
+                    {issue.category}
+                  </span>
+                  {issue.chunk?.chapter && (
+                    <span className="text-xs text-gray-500">
+                      {issue.chunk.chapter}
+                    </span>
+                  )}
+                </div>
+              </div>
+              
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                {issue.title}
+              </h3>
+              
+              <p className="text-gray-700 mb-3">{issue.description}</p>
+              
+              {issue.evidence && (
+                <div className="bg-gray-50 border border-gray-200 rounded p-3 mb-3">
+                  <p className="text-sm text-gray-600 font-mono">{issue.evidence}</p>
+                </div>
+              )}
+              
+              {issue.suggestion && (
+                <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                  <p className="text-sm text-blue-900">
+                    <strong>Suggestion:</strong> {issue.suggestion}
+                  </p>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200">
+                <div className="flex items-center space-x-2">
+                  {issue.revisions && issue.revisions.length > 0 && (
+                    <span className="text-xs px-2 py-1 rounded bg-green-100 text-green-800">
+                      {issue.revisions.filter(r => r.status === 'accepted').length} accepted
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={() => setSelectedIssue(issue)}
+                  className="px-4 py-2 bg-romance-600 text-white text-sm rounded hover:bg-romance-700 transition-colors"
+                >
+                  Generate Rewrite
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : !analyzing && (
+        <div className="card text-center py-12">
+          <p className="text-gray-600">
+            No issues found yet. Run analysis to get started.
+          </p>
+        </div>
+      )}
+    </div>
+
+    {/* Rewrite Drawer */}
+    {selectedIssue && (
+      <RewriteDrawer
+        issue={selectedIssue}
+        onClose={() => setSelectedIssue(null)}
+        onAccept={handleRewriteAccept}
+        onReject={handleRewriteReject}
+      />
+    )}
+    </div>
+  );
+}
