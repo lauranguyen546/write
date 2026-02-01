@@ -315,7 +315,6 @@ export default function AnalysisPage() {
           </p>
         </div>
       )}
-    </div>
 
     {/* Rewrite Drawer */}
     {selectedIssue && (
