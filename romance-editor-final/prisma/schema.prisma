@@ -20,6 +20,7 @@ model Project {
   issues       Issue[]
   jobs         Job[]
   notes        Note[]
+  writingRules WritingRule[]
 }
 
 model Manuscript {
@@ -102,4 +103,22 @@ model Note {
   updatedAt   DateTime @updatedAt
 
   @@index([projectId, type])
+}
+
+model WritingRule {
+  id          String   @id @default(uuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  category    String   // "style", "voice", "grammar", "forbidden"
+  rule        String   // Human-readable rule description
+  examples    String   @default("[]") // JSON array of example sentences
+  priority    Int      @default(50) // 0-100, higher = more important
+  enabled     Boolean  @default(true)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([projectId, category])
+  @@index([projectId, enabled])
 }
