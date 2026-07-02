@@ -28,6 +28,7 @@ export interface ViewerIssue {
 }
 
 interface ManuscriptViewerProps {
+  projectId: string;
   text: string;
   chunks: ViewerChunk[];
   issues: ViewerIssue[];
@@ -145,6 +146,7 @@ function computeChapters(text: string, chunks: ViewerChunk[]): ChapterSection[] 
 }
 
 export default function ManuscriptViewer({
+  projectId,
   text,
   chunks,
   issues,
@@ -154,6 +156,64 @@ export default function ManuscriptViewer({
   const [activeIssueId, setActiveIssueId] = useState<string | null>(null);
   const [rewriteIssue, setRewriteIssue] = useState<ViewerIssue | null>(null);
   const sidebarRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  // "Add to Notes" from a text selection
+  const [selectionAction, setSelectionAction] = useState<{
+    text: string;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [noteDialog, setNoteDialog] = useState<string | null>(null); // holds selected text
+  const [noteType, setNoteType] = useState('custom');
+  const [noteTitle, setNoteTitle] = useState('');
+  const [noteSaved, setNoteSaved] = useState(false);
+  const textPaneRef = useRef<HTMLDivElement>(null);
+
+  const handleMouseUp = () => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) {
+      setSelectionAction(null);
+      return;
+    }
+    const selected = sel.toString().trim();
+    if (selected.length < 3 || !textPaneRef.current?.contains(sel.anchorNode)) {
+      setSelectionAction(null);
+      return;
+    }
+    const rect = sel.getRangeAt(0).getBoundingClientRect();
+    setSelectionAction({
+      text: selected,
+      x: rect.left + rect.width / 2,
+      y: rect.top,
+    });
+  };
+
+  const saveNote = async () => {
+    if (!noteDialog) return;
+    try {
+      const response = await fetch('/api/notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId,
+          type: noteType,
+          title: noteTitle || noteDialog.slice(0, 60),
+          content: `> ${noteDialog}`,
+          tags: ['from-manuscript'],
+        }),
+      });
+      if (response.ok) {
+        setNoteSaved(true);
+        setTimeout(() => {
+          setNoteDialog(null);
+          setNoteSaved(false);
+          setNoteTitle('');
+        }, 900);
+      }
+    } catch (error) {
+      console.error('Failed to save note:', error);
+    }
+  };
 
   const highlights = useMemo(
     () => computeHighlights(text, chunks, issues),
@@ -288,7 +348,11 @@ export default function ManuscriptViewer({
             Reading mode
           </label>
         </div>
-        <div className="max-w-3xl mx-auto px-8 py-10">
+        <div
+          ref={textPaneRef}
+          onMouseUp={handleMouseUp}
+          className="max-w-3xl mx-auto px-8 py-10"
+        >
           {chapters.map((chapter, idx) => (
             <section key={idx} id={`chapter-${idx}`} className="mb-10">
               <h2 className="text-xl font-bold text-gray-900 mb-4 pb-2 border-b border-gray-100">
@@ -301,6 +365,90 @@ export default function ManuscriptViewer({
           ))}
         </div>
       </div>
+
+      {/* Floating "Add to Notes" button on selection */}
+      {selectionAction && !noteDialog && (
+        <button
+          className="fixed z-40 -translate-x-1/2 -translate-y-full mb-1 px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg shadow-lg hover:bg-gray-700 transition-colors"
+          style={{ left: selectionAction.x, top: selectionAction.y - 6 }}
+          onClick={() => {
+            setNoteDialog(selectionAction.text);
+            setSelectionAction(null);
+          }}
+        >
+          📝 Add to Notes
+        </button>
+      )}
+
+      {/* Quick note dialog */}
+      {noteDialog && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4"
+          onClick={() => setNoteDialog(null)}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl max-w-md w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Add to Notes</h3>
+            {noteSaved ? (
+              <p className="text-green-700 bg-green-50 rounded p-3 text-sm">
+                ✓ Note saved
+              </p>
+            ) : (
+              <div className="space-y-4">
+                <blockquote className="text-sm text-gray-600 italic border-l-2 border-romance-300 pl-3 max-h-24 overflow-y-auto">
+                  {noteDialog}
+                </blockquote>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Type
+                    </label>
+                    <select
+                      value={noteType}
+                      onChange={(e) => setNoteType(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-romance-500"
+                    >
+                      <option value="character">👤 Character</option>
+                      <option value="setting">🌍 Setting</option>
+                      <option value="plot">📖 Plot</option>
+                      <option value="theme">💭 Theme</option>
+                      <option value="custom">📝 Custom</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Title (optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={noteTitle}
+                      onChange={(e) => setNoteTitle(e.target.value)}
+                      placeholder="Auto from excerpt"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-romance-500"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => setNoteDialog(null)}
+                    className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveNote}
+                    className="px-4 py-2 text-sm bg-romance-600 text-white rounded-md hover:bg-romance-700 transition-colors"
+                  >
+                    Save Note
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Annotations Sidebar */}
       {!readingMode && (

@@ -88,6 +88,7 @@ export default function ManuscriptPage() {
 
   return (
     <ManuscriptViewer
+      projectId={projectId}
       text={manuscript.text}
       chunks={manuscript.chunks}
       issues={issues}

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+export const dynamic = 'force-dynamic';
+
 // The analysis pipeline stores the story bible and arc tracker in the
 // first chunk's summaryJson (see lib/analysis/editorial-pipeline.ts).
 export async function GET(request: NextRequest) {

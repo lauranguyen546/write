@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+export const dynamic = 'force-dynamic';
+
 // Returns the latest manuscript's full text plus chunk position metadata,
 // which the viewer uses to anchor issue highlights and chapter navigation.
 export async function GET(request: NextRequest) {
