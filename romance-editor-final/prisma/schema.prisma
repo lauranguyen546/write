@@ -61,8 +61,13 @@ model Issue {
   startChar   Int?       // Position in chunk
   endChar     Int?       // Position in chunk
   tagsJson    String?    // JSON: additional tags (character names, etc.)
+  status      String     @default("todo") // todo, in_progress, resolved, dismissed
+  priority    Int        @default(2)      // 1-3 stars
+  editingPass String?    // first_draft, line_edit, polish
   createdAt   DateTime   @default(now())
   revisions   Revision[]
+
+  @@index([projectId, status])
 }
 
 model Revision {

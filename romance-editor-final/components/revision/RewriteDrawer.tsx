@@ -22,6 +22,8 @@ export default function RewriteDrawer({ issue, onClose, onAccept, onReject }: Re
   const [additionalGuidance, setAdditionalGuidance] = useState('');
   const [error, setError] = useState('');
   const [viewMode, setViewMode] = useState<'inline' | 'side-by-side'>('side-by-side');
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedText, setEditedText] = useState('');
 
   const generateRewrite = async () => {
     setLoading(true);
@@ -44,6 +46,8 @@ export default function RewriteDrawer({ issue, onClose, onAccept, onReject }: Re
 
       const data = await response.json();
       setRevision(data.revision);
+      setEditedText(data.revision?.suggestedText || '');
+      setIsEditing(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate rewrite');
     } finally {
@@ -51,12 +55,17 @@ export default function RewriteDrawer({ issue, onClose, onAccept, onReject }: Re
     }
   };
 
+  const wasEdited = revision && editedText !== revision.suggestedText;
+
   const handleAccept = async () => {
     if (!revision) return;
 
     try {
       const response = await fetch(`/api/revisions/${revision.id}/accept`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        // Send the edited text when the author customized the suggestion
+        body: wasEdited ? JSON.stringify({ suggestedText: editedText }) : undefined,
       });
 
       if (response.ok) {
@@ -174,36 +183,80 @@ export default function RewriteDrawer({ issue, onClose, onAccept, onReject }: Re
             <div>
               {/* View Mode Toggle */}
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">Suggested Revision</h3>
+                <h3 className="text-lg font-semibold">
+                  Suggested Revision
+                  {wasEdited && (
+                    <span className="ml-2 px-2 py-0.5 bg-purple-100 text-purple-800 rounded text-xs font-medium align-middle">
+                      Edited
+                    </span>
+                  )}
+                </h3>
                 <div className="flex space-x-2">
+                  <button
+                    onClick={() => setIsEditing(!isEditing)}
+                    className={`px-3 py-1 text-sm rounded ${
+                      isEditing
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }`}
+                  >
+                    ✏️ {isEditing ? 'Done Editing' : 'Edit'}
+                  </button>
                   <button
                     onClick={() => setViewMode('side-by-side')}
                     className={`px-3 py-1 text-sm rounded ${
-                      viewMode === 'side-by-side'
+                      viewMode === 'side-by-side' && !isEditing
                         ? 'bg-romance-600 text-white'
                         : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                     }`}
+                    disabled={isEditing}
                   >
                     Side by Side
                   </button>
                   <button
                     onClick={() => setViewMode('inline')}
                     className={`px-3 py-1 text-sm rounded ${
-                      viewMode === 'inline'
+                      viewMode === 'inline' && !isEditing
                         ? 'bg-romance-600 text-white'
                         : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                     }`}
+                    disabled={isEditing}
                   >
                     Inline
                   </button>
                 </div>
               </div>
 
-              <DiffViewer
-                originalText={revision.originalText}
-                suggestedText={revision.suggestedText}
-                inline={viewMode === 'inline'}
-              />
+              {isEditing ? (
+                <div>
+                  <textarea
+                    value={editedText}
+                    onChange={(e) => setEditedText(e.target.value)}
+                    rows={10}
+                    className="w-full px-4 py-3 border-2 border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono text-sm"
+                  />
+                  <div className="flex items-center justify-between mt-2">
+                    <p className="text-xs text-gray-500">
+                      Edit the AI suggestion to match your voice, then click "Done Editing"
+                      to preview the diff.
+                    </p>
+                    {wasEdited && (
+                      <button
+                        onClick={() => setEditedText(revision.suggestedText)}
+                        className="text-xs text-purple-600 hover:text-purple-800 font-medium"
+                      >
+                        Reset to AI version
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <DiffViewer
+                  originalText={revision.originalText}
+                  suggestedText={editedText || revision.suggestedText}
+                  inline={viewMode === 'inline'}
+                />
+              )}
             </div>
           )}
         </div>
@@ -214,8 +267,8 @@ export default function RewriteDrawer({ issue, onClose, onAccept, onReject }: Re
             <button onClick={handleReject} className="btn-secondary">
               Reject
             </button>
-            <button onClick={handleAccept} className="btn-primary">
-              Accept Revision
+            <button onClick={handleAccept} className="btn-primary" disabled={isEditing}>
+              {wasEdited ? 'Accept Edited Revision' : 'Accept Revision'}
             </button>
             <button
               onClick={() => setRevision(null)}
