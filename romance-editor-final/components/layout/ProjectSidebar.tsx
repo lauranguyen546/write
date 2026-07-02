@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { usePathname, useParams } from 'next/navigation';
+import { usePathname, useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 interface NavItem {
@@ -9,6 +9,7 @@ interface NavItem {
   label: string;
   icon: string;
   badge?: string | number;
+  shortcut?: string; // pressed after "g"
 }
 
 interface ProjectSidebarProps {
@@ -18,10 +19,12 @@ interface ProjectSidebarProps {
 export default function ProjectSidebar({ projectTitle }: ProjectSidebarProps) {
   const pathname = usePathname();
   const params = useParams();
+  const router = useRouter();
   const projectId = params.id as string;
 
   const [collapsed, setCollapsed] = useState(false);
   const [analysisProgress, setAnalysisProgress] = useState<number | null>(null);
+  const [showShortcuts, setShowShortcuts] = useState(false);
 
   // Load collapsed state from localStorage
   useEffect(() => {
@@ -62,19 +65,77 @@ export default function ProjectSidebar({ projectTitle }: ProjectSidebarProps) {
   }, [projectId]);
 
   const mainNavItems: NavItem[] = [
-    { href: `/projects/${projectId}/manuscript`, label: 'Manuscript', icon: '📄' },
-    { href: `/projects/${projectId}/analysis`, label: 'Analysis', icon: '🔍' },
-    { href: `/projects/${projectId}/story-bible`, label: 'Story Bible', icon: '📚' },
-    { href: `/projects/${projectId}/romance-beats`, label: 'Romance Beats', icon: '💕' },
-    { href: `/projects/${projectId}/notes`, label: 'Notes', icon: '📝' },
-    { href: `/projects/${projectId}/settings/writing-rules`, label: 'Writing Rules', icon: '✍️' },
-    { href: `/projects/${projectId}/export`, label: 'Export', icon: '📊' },
+    { href: `/projects/${projectId}/manuscript`, label: 'Manuscript', icon: '📄', shortcut: 'm' },
+    { href: `/projects/${projectId}/analysis`, label: 'Analysis', icon: '🔍', shortcut: 'a' },
+    { href: `/projects/${projectId}/story-bible`, label: 'Story Bible', icon: '📚', shortcut: 'b' },
+    { href: `/projects/${projectId}/romance-beats`, label: 'Romance Beats', icon: '💕', shortcut: 'r' },
+    { href: `/projects/${projectId}/editorial-letter`, label: 'Editorial Letter', icon: '✉️', shortcut: 'l' },
+    { href: `/projects/${projectId}/notes`, label: 'Notes', icon: '📝', shortcut: 'n' },
+    { href: `/projects/${projectId}/settings/writing-rules`, label: 'Writing Rules', icon: '✍️', shortcut: 'w' },
+    { href: `/projects/${projectId}/export`, label: 'Export', icon: '📊', shortcut: 'e' },
   ];
 
   const secondaryNavItems: NavItem[] = [
     { href: `/projects/${projectId}/settings`, label: 'Settings', icon: '⚙️' },
     { href: `/projects/${projectId}/progress`, label: 'Progress', icon: '📈' },
   ];
+
+  // Gmail-style shortcuts: press "g" then a letter to navigate; "?" for help
+  useEffect(() => {
+    let awaitingSecondKey = false;
+    let timer: ReturnType<typeof setTimeout>;
+
+    const isTyping = (target: EventTarget | null) => {
+      const el = target as HTMLElement | null;
+      if (!el) return false;
+      const tag = el.tagName;
+      return (
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT' ||
+        el.isContentEditable
+      );
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (isTyping(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
+
+      if (e.key === '?') {
+        e.preventDefault();
+        setShowShortcuts((prev) => !prev);
+        return;
+      }
+      if (e.key === 'Escape') {
+        setShowShortcuts(false);
+        return;
+      }
+
+      if (awaitingSecondKey) {
+        const item = mainNavItems.find((i) => i.shortcut === e.key.toLowerCase());
+        if (item) {
+          e.preventDefault();
+          router.push(item.href);
+        }
+        awaitingSecondKey = false;
+        clearTimeout(timer);
+        return;
+      }
+
+      if (e.key.toLowerCase() === 'g') {
+        awaitingSecondKey = true;
+        timer = setTimeout(() => {
+          awaitingSecondKey = false;
+        }, 1500);
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, router]);
 
   const isActive = (href: string) => {
     if (href === `/projects/${projectId}/manuscript`) {
@@ -214,10 +275,59 @@ export default function ProjectSidebar({ projectTitle }: ProjectSidebarProps) {
       {/* Keyboard Shortcuts Hint */}
       {!collapsed && (
         <div className="px-4 pb-4">
-          <button className="w-full text-xs text-gray-500 hover:text-gray-700 transition-colors text-center">
+          <button
+            onClick={() => setShowShortcuts(true)}
+            className="w-full text-xs text-gray-500 hover:text-gray-700 transition-colors text-center"
+          >
             Press <kbd className="px-1 py-0.5 bg-gray-100 rounded text-xs">?</kbd> for
             shortcuts
           </button>
+        </div>
+      )}
+
+      {/* Shortcuts Help Modal */}
+      {showShortcuts && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowShortcuts(false)}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl max-w-md w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-900">Keyboard Shortcuts</h2>
+              <button
+                onClick={() => setShowShortcuts(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              Press <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">g</kbd>{' '}
+              then a letter to jump to a page:
+            </p>
+            <div className="space-y-2">
+              {mainNavItems.map((item) => (
+                <div key={item.href} className="flex items-center justify-between text-sm">
+                  <span className="text-gray-700">
+                    {item.icon} {item.label}
+                  </span>
+                  <span className="flex gap-1">
+                    <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">g</kbd>
+                    <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">
+                      {item.shortcut}
+                    </kbd>
+                  </span>
+                </div>
+              ))}
+              <div className="flex items-center justify-between text-sm pt-2 border-t border-gray-100">
+                <span className="text-gray-700">Show this help</span>
+                <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">?</kbd>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
