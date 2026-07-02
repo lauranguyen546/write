@@ -2,6 +2,11 @@
 
 import { useState } from 'react';
 import DiffViewer from './DiffViewer';
+import RewriteControls, {
+  DEFAULT_CONTROLS,
+  buildGuidance,
+  RewriteControlsState,
+} from './RewriteControls';
 
 interface RewriteDrawerProps {
   issue: {
@@ -24,18 +29,25 @@ export default function RewriteDrawer({ issue, onClose, onAccept, onReject }: Re
   const [viewMode, setViewMode] = useState<'inline' | 'side-by-side'>('side-by-side');
   const [isEditing, setIsEditing] = useState(false);
   const [editedText, setEditedText] = useState('');
+  const [controls, setControls] = useState<RewriteControlsState>(DEFAULT_CONTROLS);
+  const [showControls, setShowControls] = useState(false);
 
   const generateRewrite = async () => {
     setLoading(true);
     setError('');
 
     try {
+      const styleGuidance = buildGuidance(controls);
+      const combinedGuidance = [styleGuidance, additionalGuidance.trim()]
+        .filter(Boolean)
+        .join(' ');
+
       const response = await fetch('/api/revisions/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           issueId: issue.id,
-          additionalGuidance: additionalGuidance || undefined,
+          additionalGuidance: combinedGuidance || undefined,
         }),
       });
 
@@ -131,6 +143,38 @@ export default function RewriteDrawer({ issue, onClose, onAccept, onReject }: Re
               </div>
             )}
           </div>
+
+          {/* Style Controls */}
+          {!revision && (
+            <div className="border border-gray-200 rounded-lg">
+              <button
+                type="button"
+                onClick={() => setShowControls(!showControls)}
+                className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <span>
+                  🎨 Style Controls
+                  {buildGuidance(controls) && (
+                    <span className="ml-2 px-2 py-0.5 bg-romance-100 text-romance-700 rounded-full text-xs">
+                      active
+                    </span>
+                  )}
+                </span>
+                <span className={`transition-transform ${showControls ? 'rotate-180' : ''}`}>
+                  ▾
+                </span>
+              </button>
+              {showControls && (
+                <div className="px-4 pb-4 border-t border-gray-100 pt-4">
+                  <RewriteControls
+                    controls={controls}
+                    onChange={setControls}
+                    disabled={loading}
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Additional Guidance */}
           {!revision && (

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { createVersion } from '@/lib/versioning/version-manager';
 
 export async function POST(
   request: NextRequest,
@@ -28,10 +29,22 @@ export async function POST(
     });
 
     // Accepting a rewrite resolves the underlying issue
-    await prisma.issue.update({
+    const issue = await prisma.issue.update({
       where: { id: revision.issueId },
       data: { status: 'resolved' },
     });
+
+    // Auto-snapshot the manuscript state so the change can be rolled back
+    try {
+      await createVersion(
+        issue.projectId,
+        `Accepted rewrite: ${issue.title.slice(0, 80)}`,
+        'auto-accept'
+      );
+    } catch (versionError) {
+      // Snapshot failure must not block the accept itself
+      console.error('Auto-version failed:', versionError);
+    }
 
     return NextResponse.json(revision);
   } catch (error) {

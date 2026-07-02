@@ -21,6 +21,7 @@ model Project {
   jobs         Job[]
   notes        Note[]
   writingRules WritingRule[]
+  versions     ManuscriptVersion[]
 }
 
 model Manuscript {
@@ -108,6 +109,21 @@ model Note {
   updatedAt   DateTime @updatedAt
 
   @@index([projectId, type])
+}
+
+model ManuscriptVersion {
+  id            String   @id @default(uuid())
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versionNumber Int
+  content       String   // composed text (original + accepted revisions at snapshot time)
+  contentHash   String   // sha256 for dedup — skip snapshot if unchanged
+  wordCount     Int
+  description   String?
+  createdBy     String   @default("user") // "user" | "auto-accept"
+  createdAt     DateTime @default(now())
+
+  @@index([projectId, versionNumber])
 }
 
 model WritingRule {
