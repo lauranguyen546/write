@@ -81,7 +81,7 @@ export default function NotesPanel({
           placeholder="Search notes..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-3"
+          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-romance-500 mb-3"
         />
 
         {/* Type Filter */}
@@ -90,7 +90,7 @@ export default function NotesPanel({
             onClick={() => setFilterType('all')}
             className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
               filterType === 'all'
-                ? 'bg-indigo-100 text-indigo-800'
+                ? 'bg-romance-100 text-romance-800'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
@@ -116,7 +116,7 @@ export default function NotesPanel({
       <div className="flex-1 overflow-y-auto">
         {loading ? (
           <div className="p-4 text-center text-gray-500">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-romance-600 mx-auto"></div>
             <p className="mt-2 text-sm">Loading notes...</p>
           </div>
         ) : filteredNotes.length === 0 ? (
@@ -125,7 +125,7 @@ export default function NotesPanel({
             {searchTerm && (
               <button
                 onClick={() => setSearchTerm('')}
-                className="mt-2 text-indigo-600 hover:text-indigo-800 text-sm"
+                className="mt-2 text-romance-600 hover:text-romance-800 text-sm"
               >
                 Clear search
               </button>
@@ -138,7 +138,7 @@ export default function NotesPanel({
                 key={note.id}
                 onClick={() => onNoteSelect?.(note)}
                 className={`w-full text-left p-4 hover:bg-gray-50 transition-colors ${
-                  selectedNoteId === note.id ? 'bg-indigo-50' : ''
+                  selectedNoteId === note.id ? 'bg-romance-50' : ''
                 }`}
               >
                 <div className="flex items-start justify-between mb-2">
@@ -189,7 +189,7 @@ export default function NotesPanel({
       <div className="p-4 border-t border-gray-200">
         <a
           href={`/projects/${projectId}/notes`}
-          className="block w-full px-4 py-2 bg-indigo-600 text-white text-center rounded-md hover:bg-indigo-700 transition-colors text-sm font-medium"
+          className="block w-full px-4 py-2 bg-romance-600 text-white text-center rounded-md hover:bg-romance-700 transition-colors text-sm font-medium"
         >
           + New Note
         </a>

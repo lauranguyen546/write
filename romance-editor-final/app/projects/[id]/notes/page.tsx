@@ -171,7 +171,7 @@ export default function NotesPage() {
             </div>
             <button
               onClick={handleCreateNote}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+              className="px-4 py-2 bg-romance-600 text-white rounded-md hover:bg-romance-700 transition-colors"
             >
               + New Note
             </button>
@@ -186,7 +186,7 @@ export default function NotesPage() {
             <div className="bg-white rounded-lg shadow">
               {loading ? (
                 <div className="p-8 text-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-romance-600 mx-auto"></div>
                   <p className="mt-2 text-sm text-gray-600">Loading notes...</p>
                 </div>
               ) : notes.length === 0 ? (
@@ -194,7 +194,7 @@ export default function NotesPage() {
                   <p className="text-gray-600 mb-4">No notes yet</p>
                   <button
                     onClick={handleCreateNote}
-                    className="text-indigo-600 hover:text-indigo-800"
+                    className="text-romance-600 hover:text-romance-800"
                   >
                     Create your first note
                   </button>
@@ -213,7 +213,7 @@ export default function NotesPage() {
                               key={note.id}
                               onClick={() => handleEditNote(note)}
                               className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors ${
-                                selectedNote?.id === note.id ? 'bg-indigo-50' : ''
+                                selectedNote?.id === note.id ? 'bg-romance-50' : ''
                               }`}
                             >
                               <h4 className="font-medium text-gray-900 mb-1">
@@ -246,7 +246,7 @@ export default function NotesPage() {
                 </p>
                 <button
                   onClick={handleCreateNote}
-                  className="px-6 py-3 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+                  className="px-6 py-3 bg-romance-600 text-white rounded-md hover:bg-romance-700 transition-colors"
                 >
                   + New Note
                 </button>
@@ -279,7 +279,7 @@ export default function NotesPage() {
                     <button
                       onClick={handleSaveNote}
                       disabled={!formData.title.trim()}
-                      className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-4 py-2 bg-romance-600 text-white rounded-md hover:bg-romance-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Save
                     </button>
@@ -299,7 +299,7 @@ export default function NotesPage() {
                           onClick={() => setFormData({ ...formData, type: type.value })}
                           className={`p-3 border-2 rounded-lg text-center transition-all ${
                             formData.type === type.value
-                              ? 'border-indigo-500 bg-indigo-50'
+                              ? 'border-romance-500 bg-romance-50'
                               : 'border-gray-200 hover:border-gray-300'
                           }`}
                         >
@@ -322,7 +322,7 @@ export default function NotesPage() {
                       value={formData.title}
                       onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                       placeholder="e.g., Elena Rodriguez - Protagonist"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-romance-500"
                     />
                   </div>
 
@@ -336,7 +336,7 @@ export default function NotesPage() {
                       onChange={(e) => setFormData({ ...formData, content: e.target.value })}
                       placeholder="Add details about this note..."
                       rows={12}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-sm"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-romance-500 font-mono text-sm"
                     />
                   </div>
 
@@ -357,7 +357,7 @@ export default function NotesPage() {
                           }
                         }}
                         placeholder="Add a tag and press Enter"
-                        className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-romance-500"
                       />
                       <button
                         onClick={handleAddTag}
@@ -371,12 +371,12 @@ export default function NotesPage() {
                         {formData.tags.map((tag, idx) => (
                           <span
                             key={idx}
-                            className="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm flex items-center gap-1"
+                            className="px-3 py-1 bg-romance-100 text-romance-800 rounded-full text-sm flex items-center gap-1"
                           >
                             {tag}
                             <button
                               onClick={() => handleRemoveTag(tag)}
-                              className="ml-1 hover:text-indigo-900"
+                              className="ml-1 hover:text-romance-900"
                             >
                               ×
                             </button>

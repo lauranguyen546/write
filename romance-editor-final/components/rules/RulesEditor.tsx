@@ -197,7 +197,7 @@ export default function RulesEditor({ projectId }: RulesEditorProps) {
           </button>
           <button
             onClick={handleCreateRule}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+            className="px-4 py-2 bg-romance-600 text-white rounded-md hover:bg-romance-700 transition-colors"
           >
             + New Rule
           </button>
@@ -237,7 +237,7 @@ export default function RulesEditor({ projectId }: RulesEditorProps) {
 
       {/* Editor Form */}
       {(isCreating || editingRule) && (
-        <div className="bg-white border-2 border-indigo-200 rounded-lg p-6">
+        <div className="bg-white border-2 border-romance-200 rounded-lg p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">
             {isCreating ? 'Create New Rule' : 'Edit Rule'}
           </h3>
@@ -255,7 +255,7 @@ export default function RulesEditor({ projectId }: RulesEditorProps) {
                     onClick={() => setFormData({ ...formData, category: cat.value })}
                     className={`p-3 border-2 rounded-lg text-center transition-all ${
                       formData.category === cat.value
-                        ? 'border-indigo-500 bg-indigo-50'
+                        ? 'border-romance-500 bg-romance-50'
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
@@ -276,7 +276,7 @@ export default function RulesEditor({ projectId }: RulesEditorProps) {
                 value={formData.rule}
                 onChange={(e) => setFormData({ ...formData, rule: e.target.value })}
                 placeholder="e.g., I use sentence fragments for dramatic effect"
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-romance-500"
               />
             </div>
 
@@ -297,7 +297,7 @@ export default function RulesEditor({ projectId }: RulesEditorProps) {
                     }
                   }}
                   placeholder="Add an example and press Enter"
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-romance-500"
                 />
                 <button
                   onClick={handleAddExample}
@@ -357,7 +357,7 @@ export default function RulesEditor({ projectId }: RulesEditorProps) {
               <button
                 onClick={handleSaveRule}
                 disabled={!formData.rule.trim()}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-romance-600 text-white rounded-md hover:bg-romance-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Save Rule
               </button>
@@ -370,7 +370,7 @@ export default function RulesEditor({ projectId }: RulesEditorProps) {
       <div className="space-y-4">
         {loading ? (
           <div className="text-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-romance-600 mx-auto"></div>
             <p className="mt-2 text-sm text-gray-600">Loading rules...</p>
           </div>
         ) : rules.length === 0 ? (
@@ -378,7 +378,7 @@ export default function RulesEditor({ projectId }: RulesEditorProps) {
             <p className="text-gray-600 mb-4">No writing rules yet</p>
             <button
               onClick={handleCreateRule}
-              className="text-indigo-600 hover:text-indigo-800"
+              className="text-romance-600 hover:text-romance-800"
             >
               Create your first rule
             </button>
