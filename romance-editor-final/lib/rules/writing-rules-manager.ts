@@ -1,6 +1,4 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 export type RuleCategory = 'style' | 'voice' | 'grammar' | 'forbidden';
 
@@ -50,6 +48,7 @@ export async function createRule(input: CreateRuleInput): Promise<WritingRule> {
 
   return {
     ...rule,
+    category: rule.category as RuleCategory,
     examples: JSON.parse(rule.examples) as string[],
   };
 }
@@ -66,6 +65,7 @@ export async function getRule(id: string): Promise<WritingRule | null> {
 
   return {
     ...rule,
+    category: rule.category as RuleCategory,
     examples: JSON.parse(rule.examples) as string[],
   };
 }
@@ -94,6 +94,7 @@ export async function getRulesByProject(
 
   return rules.map(rule => ({
     ...rule,
+    category: rule.category as RuleCategory,
     examples: JSON.parse(rule.examples) as string[],
   }));
 }
@@ -120,6 +121,7 @@ export async function updateRule(
 
   return {
     ...rule,
+    category: rule.category as RuleCategory,
     examples: JSON.parse(rule.examples) as string[],
   };
 }

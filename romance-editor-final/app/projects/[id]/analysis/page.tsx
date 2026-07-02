@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import RewriteDrawer from '@/components/revision/RewriteDrawer';
@@ -20,10 +20,19 @@ interface Issue {
   revisions?: Array<{ id: string; status: string }>;
 }
 
+const SEVERITY_ORDER = ['critical', 'major', 'minor', 'suggestion'];
+
+const SEVERITY_DOTS: { [key: string]: string } = {
+  critical: '🔴',
+  major: '🟠',
+  minor: '🟡',
+  suggestion: '🔵',
+};
+
 export default function AnalysisPage() {
   const params = useParams();
   const projectId = params.id as string;
-  
+
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
@@ -33,6 +42,8 @@ export default function AnalysisPage() {
   const [filterCategory, setFilterCategory] = useState<string>('');
   const [filterSeverity, setFilterSeverity] = useState<string>('');
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
+  const [groupByChapter, setGroupByChapter] = useState(true);
+  const [expandedChapters, setExpandedChapters] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetchProject();
@@ -65,7 +76,7 @@ export default function AnalysisPage() {
       const params = new URLSearchParams({ projectId });
       if (filterCategory) params.append('category', filterCategory);
       if (filterSeverity) params.append('severity', filterSeverity);
-      
+
       const response = await fetch(`/api/issues?${params}`);
       if (response.ok) {
         const data = await response.json();
@@ -122,6 +133,50 @@ export default function AnalysisPage() {
     }
   };
 
+  // Group issues by chapter, preserving the API's severity ordering within groups
+  const chapterGroups = useMemo(() => {
+    const groups = new Map<string, Issue[]>();
+    issues.forEach((issue) => {
+      const chapter = issue.chunk?.chapter || 'Uncategorized';
+      if (!groups.has(chapter)) groups.set(chapter, []);
+      groups.get(chapter)!.push(issue);
+    });
+    return Array.from(groups.entries());
+  }, [issues]);
+
+  const distinctChapterCount = chapterGroups.length;
+
+  // Expand the first chapter by default when groups load
+  useEffect(() => {
+    if (chapterGroups.length > 0 && expandedChapters.size === 0) {
+      setExpandedChapters(new Set([chapterGroups[0][0]]));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chapterGroups.length]);
+
+  const toggleChapter = (chapter: string) => {
+    setExpandedChapters((prev) => {
+      const next = new Set(prev);
+      if (next.has(chapter)) {
+        next.delete(chapter);
+      } else {
+        next.add(chapter);
+      }
+      return next;
+    });
+  };
+
+  const severityCounts = (chapterIssues: Issue[]) => {
+    const counts: { [key: string]: number } = {};
+    chapterIssues.forEach((issue) => {
+      counts[issue.severity] = (counts[issue.severity] || 0) + 1;
+    });
+    return SEVERITY_ORDER.filter((sev) => counts[sev]).map((sev) => ({
+      severity: sev,
+      count: counts[sev],
+    }));
+  };
+
   const getSeverityColor = (severity: string) => {
     const colors: { [key: string]: string } = {
       critical: 'bg-red-100 text-red-800 border-red-300',
@@ -139,6 +194,67 @@ export default function AnalysisPage() {
   const handleRewriteReject = () => {
     // Just close, no refresh needed
   };
+
+  const renderIssueCard = (issue: Issue) => (
+    <div key={issue.id} className="card">
+      <div className="flex items-start justify-between mb-2">
+        <div className="flex items-center space-x-2">
+          <span
+            className={`px-2 py-1 rounded text-xs font-medium ${getSeverityColor(
+              issue.severity
+            )}`}
+          >
+            {issue.severity}
+          </span>
+          <span className="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-700">
+            {issue.category}
+          </span>
+          {issue.chunk?.chapter && !groupByChapter && (
+            <span className="text-xs text-gray-500">
+              {issue.chunk.chapter}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+        {issue.title}
+      </h3>
+
+      <p className="text-gray-700 mb-3">{issue.description}</p>
+
+      {issue.evidence && (
+        <div className="bg-gray-50 border border-gray-200 rounded p-3 mb-3">
+          <p className="text-sm text-gray-600 font-mono">{issue.evidence}</p>
+        </div>
+      )}
+
+      {issue.suggestion && (
+        <div className="bg-blue-50 border border-blue-200 rounded p-3">
+          <p className="text-sm text-blue-900">
+            <strong>Suggestion:</strong> {issue.suggestion}
+          </p>
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200">
+        <div className="flex items-center space-x-2">
+          {issue.revisions && issue.revisions.length > 0 && (
+            <span className="text-xs px-2 py-1 rounded bg-green-100 text-green-800">
+              {issue.revisions.filter(r => r.status === 'accepted').length} accepted
+            </span>
+          )}
+        </div>
+        <button
+          onClick={() => setSelectedIssue(issue)}
+          className="px-4 py-2 bg-romance-600 text-white text-sm rounded hover:bg-romance-700 transition-colors"
+        >
+          Generate Rewrite
+        </button>
+      </div>
+    </div>
+  );
 
   if (loading) {
     return (
@@ -163,7 +279,7 @@ export default function AnalysisPage() {
       {/* Analysis Control */}
       <div className="card mb-6">
         <h2 className="text-xl font-semibold mb-4">Editorial Analysis</h2>
-        
+
         {analyzing ? (
           <div className="space-y-3">
             <div className="flex items-center space-x-3">
@@ -205,7 +321,20 @@ export default function AnalysisPage() {
       {/* Filters */}
       {issues.length > 0 && (
         <div className="card mb-6">
-          <h3 className="font-semibold mb-3">Filters</h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold">Filters</h3>
+            {distinctChapterCount > 1 && (
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={groupByChapter}
+                  onChange={(e) => setGroupByChapter(e.target.checked)}
+                  className="rounded border-gray-300 text-romance-600 focus:ring-romance-500"
+                />
+                Group by chapter
+              </label>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -246,68 +375,55 @@ export default function AnalysisPage() {
 
       {/* Issues List */}
       {issues.length > 0 ? (
-        <div className="space-y-4">
-          {issues.map((issue) => (
-            <div key={issue.id} className="card">
-              <div className="flex items-start justify-between mb-2">
-                <div className="flex items-center space-x-2">
-                  <span
-                    className={`px-2 py-1 rounded text-xs font-medium ${getSeverityColor(
-                      issue.severity
-                    )}`}
+        groupByChapter && distinctChapterCount > 1 ? (
+          <div className="space-y-4">
+            {chapterGroups.map(([chapter, chapterIssues]) => {
+              const expanded = expandedChapters.has(chapter);
+              return (
+                <div key={chapter} className="border border-gray-200 rounded-lg bg-white overflow-hidden">
+                  <button
+                    onClick={() => toggleChapter(chapter)}
+                    className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors text-left"
                   >
-                    {issue.severity}
-                  </span>
-                  <span className="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-700">
-                    {issue.category}
-                  </span>
-                  {issue.chunk?.chapter && (
-                    <span className="text-xs text-gray-500">
-                      {issue.chunk.chapter}
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`text-gray-400 transition-transform ${
+                          expanded ? 'rotate-90' : ''
+                        }`}
+                      >
+                        ▶
+                      </span>
+                      <span className="font-semibold text-gray-900">{chapter}</span>
+                      <span className="text-sm text-gray-500">
+                        ({chapterIssues.length} {chapterIssues.length === 1 ? 'issue' : 'issues'})
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {severityCounts(chapterIssues).map(({ severity, count }) => (
+                        <span
+                          key={severity}
+                          className="text-xs text-gray-700"
+                          title={`${count} ${severity}`}
+                        >
+                          {SEVERITY_DOTS[severity]}{count}
+                        </span>
+                      ))}
+                    </div>
+                  </button>
+                  {expanded && (
+                    <div className="px-5 pb-5 space-y-4 border-t border-gray-100 pt-4">
+                      {chapterIssues.map(renderIssueCard)}
+                    </div>
                   )}
                 </div>
-              </div>
-              
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                {issue.title}
-              </h3>
-              
-              <p className="text-gray-700 mb-3">{issue.description}</p>
-              
-              {issue.evidence && (
-                <div className="bg-gray-50 border border-gray-200 rounded p-3 mb-3">
-                  <p className="text-sm text-gray-600 font-mono">{issue.evidence}</p>
-                </div>
-              )}
-              
-              {issue.suggestion && (
-                <div className="bg-blue-50 border border-blue-200 rounded p-3">
-                  <p className="text-sm text-blue-900">
-                    <strong>Suggestion:</strong> {issue.suggestion}
-                  </p>
-                </div>
-              )}
-
-              {/* Actions */}
-              <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200">
-                <div className="flex items-center space-x-2">
-                  {issue.revisions && issue.revisions.length > 0 && (
-                    <span className="text-xs px-2 py-1 rounded bg-green-100 text-green-800">
-                      {issue.revisions.filter(r => r.status === 'accepted').length} accepted
-                    </span>
-                  )}
-                </div>
-                <button
-                  onClick={() => setSelectedIssue(issue)}
-                  className="px-4 py-2 bg-romance-600 text-white text-sm rounded hover:bg-romance-700 transition-colors"
-                >
-                  Generate Rewrite
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {issues.map(renderIssueCard)}
+          </div>
+        )
       ) : !analyzing && (
         <div className="card text-center py-12">
           <p className="text-gray-600">
@@ -315,17 +431,16 @@ export default function AnalysisPage() {
           </p>
         </div>
       )}
-    </div>
 
-    {/* Rewrite Drawer */}
-    {selectedIssue && (
-      <RewriteDrawer
-        issue={selectedIssue}
-        onClose={() => setSelectedIssue(null)}
-        onAccept={handleRewriteAccept}
-        onReject={handleRewriteReject}
-      />
-    )}
+      {/* Rewrite Drawer */}
+      {selectedIssue && (
+        <RewriteDrawer
+          issue={selectedIssue}
+          onClose={() => setSelectedIssue(null)}
+          onAccept={handleRewriteAccept}
+          onReject={handleRewriteReject}
+        />
+      )}
     </div>
   );
 }

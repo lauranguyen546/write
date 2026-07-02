@@ -1,8 +1,6 @@
 import { ReactNode } from 'react';
 import ProjectSidebar from '@/components/layout/ProjectSidebar';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 interface ProjectLayoutProps {
   children: ReactNode;

@@ -1,6 +1,4 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 export type NoteType = 'character' | 'setting' | 'plot' | 'theme' | 'custom';
 
@@ -46,6 +44,7 @@ export async function createNote(input: CreateNoteInput): Promise<Note> {
 
   return {
     ...note,
+    type: note.type as NoteType,
     tags: JSON.parse(note.tags) as string[],
   };
 }
@@ -62,6 +61,7 @@ export async function getNote(id: string): Promise<Note | null> {
 
   return {
     ...note,
+    type: note.type as NoteType,
     tags: JSON.parse(note.tags) as string[],
   };
 }
@@ -90,6 +90,7 @@ export async function getNotesByProject(
   // Parse tags and apply filters
   let parsedNotes = notes.map(note => ({
     ...note,
+    type: note.type as NoteType,
     tags: JSON.parse(note.tags) as string[],
   }));
 
@@ -135,6 +136,7 @@ export async function updateNote(
 
   return {
     ...note,
+    type: note.type as NoteType,
     tags: JSON.parse(note.tags) as string[],
   };
 }
