@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import ManuscriptViewer, {
   ViewerChunk,
@@ -16,7 +16,9 @@ interface ManuscriptData {
 
 export default function ManuscriptPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const projectId = params.id as string;
+  const focusIssueId = searchParams.get('issue');
 
   const [manuscript, setManuscript] = useState<ManuscriptData | null>(null);
   const [issues, setIssues] = useState<ViewerIssue[]>([]);
@@ -93,6 +95,7 @@ export default function ManuscriptPage() {
       chunks={manuscript.chunks}
       issues={issues}
       onIssuesChanged={fetchIssues}
+      focusIssueId={focusIssueId}
     />
   );
 }

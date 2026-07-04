@@ -38,7 +38,7 @@ WHAT TO AVOID:
 - Focusing on minor issues while missing major structural problems
 
 OUTPUT FORMAT:
-Provide your analysis as structured JSON with this format:
+Respond with ONLY a valid JSON object — no prose before or after it, no markdown code fences. Use exactly this structure:
 {
   "issues": [
     {
@@ -46,18 +46,26 @@ Provide your analysis as structured JSON with this format:
       "severity": "critical|major|minor|suggestion",
       "title": "Brief title of the issue",
       "description": "Detailed explanation of the problem",
-      "evidence": "Relevant quote from the text",
+      "evidence": "EXACT verbatim quote copied character-for-character from the text (20-200 characters). Do NOT paraphrase, correct punctuation, or shorten with ellipses — the app uses this quote to highlight the passage in the manuscript.",
       "suggestion": "Specific, actionable fix"
     }
   ],
   "strengths": ["List 2-3 specific strengths you noticed"],
   "storyBibleUpdate": {
-    "characters": [{"name": "", "role": "", "traits": [], "arc": ""}],
-    "relationshipStatus": "Current state of romance",
+    "characters": [{"name": "", "role": "protagonist|love interest|antagonist|supporting", "traits": [], "arc": ""}],
+    "relationshipStatus": "Current state of the central romance",
     "keyEvents": ["Major plot points in this section"],
-    "unresolvedThreads": ["Dangling plot threads or questions"]
+    "unresolvedThreads": ["Dangling plot threads or questions"],
+    "povCharacter": "Name of the POV character for this scene (or null)",
+    "locations": ["Settings/locations appearing in this section"],
+    "romanceBeats": [{"beat": "canonical beat name", "evidence": "one-line summary of how the beat appears"}]
   }
-}`;
+}
+
+ROMANCE BEAT DETECTION:
+In "romanceBeats", report ONLY beats that clearly occur IN THIS SECTION, using EXACTLY these canonical names from Romancing the Beat (Gwen Hayes):
+"Introduce Hero 1", "Introduce Hero 2", "Meet Cute", "No Way!", "Adhesion", "No Way... Maybe?", "Deepening Desire", "Midpoint of Love", "Inkling of Doubt", "Deepening Doubt", "Retreat (Break Up)", "Dark Night of the Soul", "Grand Gesture", "HEA / HFN".
+If no beat occurs in this section, return an empty array. Never invent beats that are not on this list.`;
 }
 
 /**

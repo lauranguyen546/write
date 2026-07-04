@@ -17,8 +17,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Use the most recent manuscript that has actually been analyzed
+    // (has chunks). A newer un-analyzed upload shouldn't hide the
+    // story bible from the previous analysis.
     const manuscript = await prisma.manuscript.findFirst({
-      where: { projectId },
+      where: { projectId, chunks: { some: {} } },
       orderBy: { createdAt: 'desc' },
       select: { id: true },
     });

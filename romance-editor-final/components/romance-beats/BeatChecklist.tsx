@@ -30,15 +30,43 @@ export interface DetectedBeat {
   present: boolean;
 }
 
+// Alternate names the analysis (or older data) may use for each beat
+const BEAT_SYNONYMS: { [canonical: string]: string[] } = {
+  'Meet Cute': ['meet-cute', 'meetcute', 'first meeting'],
+  'No Way!': ['no way', 'refusal', 'denial of attraction'],
+  'Adhesion': ['stuck together', 'forced proximity'],
+  'No Way... Maybe?': ['no way maybe', 'maybe'],
+  'Deepening Desire': ['growing attraction', 'deepening attraction'],
+  'Midpoint of Love': ['midpoint', 'first kiss', 'midpoint commitment'],
+  'Inkling of Doubt': ['inkling', 'first doubt'],
+  'Deepening Doubt': ['growing doubt', 'doubts deepen'],
+  'Retreat (Break Up)': ['break up', 'breakup', 'break-up', 'retreat', 'the lurch'],
+  'Dark Night of the Soul': ['black moment', 'dark moment', 'dark night'],
+  'Grand Gesture': ['grand gesture', 'sacrifice'],
+  'HEA / HFN': ['hea', 'hfn', 'happily ever after', 'happy for now', 'happy ending'],
+};
+
+function normalizeBeatName(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+}
+
 export function matchBeat(
   canonical: CanonicalBeat,
   detected: DetectedBeat[]
 ): DetectedBeat | undefined {
-  const canonName = canonical.name.toLowerCase();
+  const canonNorm = normalizeBeatName(canonical.name);
+  const synonyms = (BEAT_SYNONYMS[canonical.name] || []).map(normalizeBeatName);
+
   return detected.find(d => {
     if (!d.present) return false;
-    const detName = d.beat.toLowerCase();
-    return detName.includes(canonName) || canonName.includes(detName);
+    const detNorm = normalizeBeatName(d.beat);
+    if (!detNorm) return false;
+    return (
+      detNorm === canonNorm ||
+      detNorm.includes(canonNorm) ||
+      canonNorm.includes(detNorm) ||
+      synonyms.some(syn => detNorm === syn || detNorm.includes(syn))
+    );
   });
 }
 

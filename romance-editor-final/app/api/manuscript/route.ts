@@ -17,23 +17,31 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const manuscript = await prisma.manuscript.findFirst({
-      where: { projectId },
-      orderBy: { createdAt: 'desc' },
-      include: {
-        chunks: {
-          orderBy: { index: 'asc' },
-          select: {
-            id: true,
-            index: true,
-            chapter: true,
-            scene: true,
-            startChar: true,
-            endChar: true,
-          },
-        },
+    // Prefer the most recent analyzed manuscript (has chunks) so issue
+    // highlights line up with the text; fall back to the latest upload.
+    const chunkSelect = {
+      orderBy: { index: 'asc' as const },
+      select: {
+        id: true,
+        index: true,
+        chapter: true,
+        scene: true,
+        startChar: true,
+        endChar: true,
       },
-    });
+    };
+
+    const manuscript =
+      (await prisma.manuscript.findFirst({
+        where: { projectId, chunks: { some: {} } },
+        orderBy: { createdAt: 'desc' },
+        include: { chunks: chunkSelect },
+      })) ??
+      (await prisma.manuscript.findFirst({
+        where: { projectId },
+        orderBy: { createdAt: 'desc' },
+        include: { chunks: chunkSelect },
+      }));
 
     if (!manuscript) {
       return NextResponse.json({ manuscript: null });

@@ -15,6 +15,7 @@ interface Issue {
   suggestion?: string;
   status: string;
   priority: number;
+  chunkId?: string | null;
   chunk?: {
     chapter?: string;
     scene?: string;
@@ -351,7 +352,15 @@ export default function AnalysisPage() {
 
       {/* Actions */}
       <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200">
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-3">
+          {issue.chunkId && (
+            <Link
+              href={`/projects/${projectId}/manuscript?issue=${issue.id}`}
+              className="text-sm font-medium text-romance-600 hover:text-romance-800 transition-colors"
+            >
+              📄 View in manuscript →
+            </Link>
+          )}
           {issue.revisions && issue.revisions.length > 0 && (
             <span className="text-xs px-2 py-1 rounded bg-green-100 text-green-800">
               {issue.revisions.filter(r => r.status === 'accepted').length} accepted

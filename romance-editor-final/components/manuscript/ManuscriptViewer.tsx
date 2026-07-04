@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useEffect, useRef, Fragment } from 'react';
 import RewriteDrawer from '@/components/revision/RewriteDrawer';
+import { locateEvidence } from '@/lib/analysis/evidence-locator';
 
 export interface ViewerChunk {
   id: string;
@@ -33,6 +34,7 @@ interface ManuscriptViewerProps {
   chunks: ViewerChunk[];
   issues: ViewerIssue[];
   onIssuesChanged: () => void;
+  focusIssueId?: string | null;
 }
 
 interface Highlight {
@@ -90,11 +92,14 @@ function computeHighlights(
     if (issue.startChar != null && issue.endChar != null && issue.endChar > issue.startChar) {
       start = chunk.startChar + issue.startChar;
       end = chunk.startChar + issue.endChar;
-    } else if (issue.evidence && issue.evidence.length >= 8) {
-      const idx = text.indexOf(issue.evidence, chunk.startChar);
-      if (idx !== -1 && idx < chunk.endChar) {
-        start = idx;
-        end = idx + issue.evidence.length;
+    } else if (issue.evidence) {
+      // Fuzzy-locate the quote inside this chunk's slice of the text
+      // (handles curly quotes, dashes, and whitespace differences)
+      const chunkSlice = text.slice(chunk.startChar, chunk.endChar);
+      const anchor = locateEvidence(chunkSlice, issue.evidence);
+      if (anchor) {
+        start = chunk.startChar + anchor.start;
+        end = chunk.startChar + anchor.end;
       }
     }
 
@@ -151,6 +156,7 @@ export default function ManuscriptViewer({
   chunks,
   issues,
   onIssuesChanged,
+  focusIssueId,
 }: ManuscriptViewerProps) {
   const [readingMode, setReadingMode] = useState(false);
   const [activeIssueId, setActiveIssueId] = useState<string | null>(null);
@@ -237,6 +243,21 @@ export default function ManuscriptViewer({
       el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
   }, [activeIssueId]);
+
+  // Deep link: focus a specific issue on load (e.g. "View in manuscript"
+  // from the Analysis page)
+  useEffect(() => {
+    if (!focusIssueId) return;
+    setActiveIssueId(focusIssueId);
+    // Wait a tick for the text to render before scrolling
+    const timer = setTimeout(() => {
+      document
+        .getElementById(`hl-${focusIssueId}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 300);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusIssueId, highlights.length]);
 
   const jumpToHighlight = (issueId: string) => {
     setActiveIssueId(issueId);

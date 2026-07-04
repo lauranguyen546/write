@@ -10,6 +10,7 @@ import { detectStructure, assignStructureToChunks } from './scene-detector';
 import { analyzeTextHeuristics, HeuristicResult } from './heuristics';
 import { getLLMClientFromEnv } from '@/lib/llm/client';
 import { getEditorSystemPrompt, getChunkAnalysisPrompt } from './prompts';
+import { locateEvidence } from './evidence-locator';
 
 export interface AnalysisProgress {
   stage: 'chunking' | 'heuristics' | 'llm-analysis' | 'synthesis' | 'complete';
@@ -71,11 +72,12 @@ export async function analyzeManuscript(
   const structureBreaks = detectStructure(text);
   const chunksWithStructure = assignStructureToChunks(chunks, structureBreaks);
 
-  // Save chunks to database
+  // Save chunks to database, keeping ids so issues can link back to them
   await prisma.chunk.deleteMany({ where: { manuscriptId } });
-  
+
+  const chunkIdByIndex = new Map<number, string>();
   for (const chunk of chunksWithStructure) {
-    await prisma.chunk.create({
+    const created = await prisma.chunk.create({
       data: {
         id: crypto.randomUUID(),
         manuscriptId,
@@ -87,6 +89,7 @@ export async function analyzeManuscript(
         endChar: chunk.endChar,
       },
     });
+    chunkIdByIndex.set(chunk.index, created.id);
   }
 
   onProgress?.({
@@ -103,12 +106,34 @@ export async function analyzeManuscript(
     message: 'Running local heuristics analysis...',
   });
 
-  const heuristicResults: HeuristicResult[] = [];
-  
+  let heuristicIssueCount = 0;
+
   for (let i = 0; i < chunksWithStructure.length; i++) {
     const chunk = chunksWithStructure[i];
     const results = analyzeTextHeuristics(chunk.text);
-    heuristicResults.push(...results);
+
+    // Save findings as issues linked to their chunk. Positions are
+    // chunk-relative (the viewer resolves them via chunk.startChar).
+    for (const result of results) {
+      for (const match of result.matches.slice(0, 5)) { // Limit per type per chunk
+        await prisma.issue.create({
+          data: {
+            id: crypto.randomUUID(),
+            projectId,
+            chunkId: chunkIdByIndex.get(chunk.index),
+            category: result.category,
+            severity: match.severity,
+            title: `${result.type}: "${match.text}"`,
+            description: `Found ${result.type.replace('-', ' ')} that may weaken the prose.`,
+            evidence: match.context,
+            suggestion: getSuggestionForHeuristic(result.type, match.text),
+            startChar: match.position,
+            endChar: match.position + match.text.length,
+          },
+        });
+        heuristicIssueCount++;
+      }
+    }
 
     if (i % 10 === 0) {
       onProgress?.({
@@ -121,30 +146,10 @@ export async function analyzeManuscript(
     }
   }
 
-  // Save heuristic findings as issues
-  for (const result of heuristicResults) {
-    for (const match of result.matches.slice(0, 5)) { // Limit per type
-      await prisma.issue.create({
-        data: {
-          id: crypto.randomUUID(),
-          projectId,
-          category: result.category,
-          severity: match.severity,
-          title: `${result.type}: "${match.text}"`,
-          description: `Found ${result.type.replace('-', ' ')} that may weaken the prose.`,
-          evidence: match.context,
-          suggestion: getSuggestionForHeuristic(result.type, match.text),
-          startChar: match.position,
-          endChar: match.position + match.text.length,
-        },
-      });
-    }
-  }
-
   onProgress?.({
     stage: 'heuristics',
     progress: 40,
-    message: `Heuristics complete: found ${heuristicResults.reduce((sum, r) => sum + r.count, 0)} potential issues`,
+    message: `Heuristics complete: found ${heuristicIssueCount} potential issues`,
   });
 
   // STAGE 3: LLM Analysis
@@ -158,12 +163,15 @@ export async function analyzeManuscript(
     const llmClient = await getLLMClientFromEnv();
     const systemPrompt = getEditorSystemPrompt(settings);
 
-    // Analyze chunks with LLM (sample a subset for MVP - every 3rd chunk)
-    const chunksToAnalyze = chunksWithStructure.filter((_, i) => i % 3 === 0);
-    
+    // Sampling rate: analyze every Nth chunk. Default 3; set
+    // LLM_CHUNK_SAMPLING=1 in .env for full coverage (better story
+    // bible and beat detection at ~3x the API cost).
+    const samplingRate = Math.max(1, parseInt(process.env.LLM_CHUNK_SAMPLING || '3', 10) || 3);
+    const chunksToAnalyze = chunksWithStructure.filter((_, i) => i % samplingRate === 0);
+
     for (let i = 0; i < chunksToAnalyze.length; i++) {
       const chunk = chunksToAnalyze[i];
-      
+
       onProgress?.({
         stage: 'llm-analysis',
         progress: 45 + (i / chunksToAnalyze.length) * 40,
@@ -172,9 +180,9 @@ export async function analyzeManuscript(
         message: `Analyzing ${chunk.chapter || 'Scene'} with AI...`,
       });
 
-      // Build context
-      const previousSummary = i > 0 ? 
-        chunksWithStructure[i - 1].text.substring(0, 200) + '...' : 
+      // Build context from the previously analyzed chunk
+      const previousSummary = i > 0 ?
+        chunksToAnalyze[i - 1].text.substring(0, 200) + '...' :
         undefined;
 
       const prompt = getChunkAnalysisPrompt(chunk.text, {
@@ -192,34 +200,37 @@ export async function analyzeManuscript(
 
         // Parse response
         const analysis = parseAnalysisResponse(response.content);
-        
-        // Save issues
+
+        // Save issues, anchoring each to its exact position in the
+        // chunk so the manuscript viewer can highlight it
         for (const issue of analysis.issues) {
+          const anchor = locateEvidence(chunk.text, issue.evidence);
           await prisma.issue.create({
             data: {
               id: crypto.randomUUID(),
               projectId,
-              chunkId: (await prisma.chunk.findFirst({
-                where: { manuscriptId, index: chunk.index },
-              }))?.id,
+              chunkId: chunkIdByIndex.get(chunk.index),
               category: issue.category,
               severity: issue.severity,
               title: issue.title,
               description: issue.description,
               evidence: issue.evidence,
               suggestion: issue.suggestion,
+              startChar: anchor?.start,
+              endChar: anchor?.end,
             },
           });
         }
 
-        // Update story bible
+        // Update story bible and romance beat tracker
         if (analysis.storyBibleUpdate) {
-          updateStoryBible(storyBible, analysis.storyBibleUpdate);
+          updateStoryBible(storyBible, analysis.storyBibleUpdate, chunk);
+          updateArcTracker(arcTracker, analysis.storyBibleUpdate, chunk);
         }
 
         // Small delay to avoid rate limiting
         await new Promise(resolve => setTimeout(resolve, 1000));
-        
+
       } catch (error) {
         console.error(`Error analyzing chunk ${i}:`, error);
         // Continue with next chunk
@@ -272,30 +283,59 @@ export async function analyzeManuscript(
  * Parse LLM response into structured data
  */
 function parseAnalysisResponse(content: string): any {
+  const empty = { issues: [], strengths: [], storyBibleUpdate: null };
   try {
-    // Try to extract JSON from response
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    // Strip markdown code fences if present
+    const cleaned = content.replace(/```(?:json)?/g, '');
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        issues: Array.isArray(parsed.issues) ? parsed.issues : [],
+        strengths: Array.isArray(parsed.strengths) ? parsed.strengths : [],
+        storyBibleUpdate: parsed.storyBibleUpdate ?? null,
+      };
     }
-    return { issues: [], strengths: [], storyBibleUpdate: null };
+    console.error('LLM response contained no JSON object:', content.slice(0, 200));
+    return empty;
   } catch (error) {
-    console.error('Failed to parse LLM response:', error);
-    return { issues: [], strengths: [], storyBibleUpdate: null };
+    console.error('Failed to parse LLM response:', error, content.slice(0, 200));
+    return empty;
   }
 }
 
 /**
- * Update story bible with new information
+ * Update story bible with new information from a chunk's analysis
  */
-function updateStoryBible(bible: StoryBible, update: any): void {
-  if (update.characters) {
+function updateStoryBible(
+  bible: StoryBible,
+  update: any,
+  chunk: { chapter?: string; scene?: string; index: number }
+): void {
+  const location = chunk.chapter || chunk.scene || `Scene ${chunk.index + 1}`;
+
+  if (Array.isArray(update.characters)) {
     for (const char of update.characters) {
-      const existing = bible.characters.find(c => c.name === char.name);
+      if (!char?.name) continue;
+      const existing = bible.characters.find(
+        c => c.name.toLowerCase() === char.name.toLowerCase()
+      );
       if (existing) {
-        Object.assign(existing, char);
+        // Merge rather than overwrite: keep known traits, add new ones
+        if (char.role) existing.role = char.role;
+        if (char.arc) existing.arc = char.arc;
+        if (Array.isArray(char.traits)) {
+          for (const trait of char.traits) {
+            if (!existing.traits.includes(trait)) existing.traits.push(trait);
+          }
+        }
       } else {
-        bible.characters.push(char);
+        bible.characters.push({
+          name: char.name,
+          role: char.role || 'unknown',
+          traits: Array.isArray(char.traits) ? char.traits : [],
+          arc: char.arc || '',
+        });
       }
     }
   }
@@ -304,12 +344,65 @@ function updateStoryBible(bible: StoryBible, update: any): void {
     bible.relationshipStatus = update.relationshipStatus;
   }
 
-  if (update.keyEvents) {
-    bible.timeline.push(...update.keyEvents);
+  if (Array.isArray(update.keyEvents)) {
+    bible.timeline.push(...update.keyEvents.filter((e: any) => typeof e === 'string'));
   }
 
-  if (update.unresolvedThreads) {
-    bible.unresolvedThreads = update.unresolvedThreads;
+  if (Array.isArray(update.unresolvedThreads)) {
+    for (const thread of update.unresolvedThreads) {
+      if (typeof thread === 'string' && !bible.unresolvedThreads.includes(thread)) {
+        bible.unresolvedThreads.push(thread);
+      }
+    }
+  }
+
+  // Settings/locations mentioned in this chunk
+  if (Array.isArray(update.locations)) {
+    for (const loc of update.locations) {
+      if (typeof loc === 'string' && !bible.settings.includes(loc)) {
+        bible.settings.push(loc);
+      }
+    }
+  }
+
+  // POV character for this chunk
+  if (typeof update.povCharacter === 'string' && update.povCharacter) {
+    if (!bible.povMap[update.povCharacter]) {
+      bible.povMap[update.povCharacter] = [];
+    }
+    if (!bible.povMap[update.povCharacter].includes(location)) {
+      bible.povMap[update.povCharacter].push(location);
+    }
+  }
+}
+
+/**
+ * Merge detected romance beats into the arc tracker. The prompt asks
+ * for canonical Romancing the Beat names; first detection of each
+ * beat wins (earliest location in the manuscript).
+ */
+function updateArcTracker(
+  tracker: ArcTracker,
+  update: any,
+  chunk: { chapter?: string; scene?: string; index: number }
+): void {
+  const location = chunk.chapter || chunk.scene || `Scene ${chunk.index + 1}`;
+
+  if (Array.isArray(update.romanceBeats)) {
+    for (const beat of update.romanceBeats) {
+      const name = typeof beat === 'string' ? beat : beat?.beat;
+      if (!name) continue;
+      const exists = tracker.romanceBeats.find(
+        b => b.beat.toLowerCase() === name.toLowerCase()
+      );
+      if (!exists) {
+        tracker.romanceBeats.push({
+          beat: name,
+          location,
+          present: true,
+        });
+      }
+    }
   }
 }
 
