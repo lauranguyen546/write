@@ -73,6 +73,7 @@ export default function ProjectSidebar({ projectTitle }: ProjectSidebarProps) {
     { href: `/projects/${projectId}/notes`, label: 'Notes', icon: '📝', shortcut: 'n' },
     { href: `/projects/${projectId}/settings/writing-rules`, label: 'Writing Rules', icon: '✍️', shortcut: 'w' },
     { href: `/projects/${projectId}/history`, label: 'History', icon: '🕐', shortcut: 'h' },
+    { href: `/projects/${projectId}/feedback`, label: 'Beta Feedback', icon: '💬', shortcut: 'f' },
     { href: `/projects/${projectId}/export`, label: 'Export', icon: '📊', shortcut: 'e' },
   ];
 

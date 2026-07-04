@@ -22,6 +22,7 @@ model Project {
   notes        Note[]
   writingRules WritingRule[]
   versions     ManuscriptVersion[]
+  shares       SharedManuscript[]
 }
 
 model Manuscript {
@@ -124,6 +125,38 @@ model ManuscriptVersion {
   createdAt     DateTime @default(now())
 
   @@index([projectId, versionNumber])
+}
+
+model SharedManuscript {
+  id        String   @id @default(uuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  token     String   @unique @default(uuid()) // unguessable public URL slug
+  active    Boolean  @default(true)
+  viewCount Int      @default(0)
+
+  createdAt DateTime @default(now())
+  comments  BetaComment[]
+
+  @@index([projectId])
+}
+
+model BetaComment {
+  id        String           @id @default(uuid())
+  shareId   String
+  share     SharedManuscript @relation(fields: [shareId], references: [id], onDelete: Cascade)
+
+  readerName String
+  text       String  // The comment itself
+  excerpt    String? // The passage the reader selected
+  position   Int?    // Character offset of the excerpt in the shared text
+  type       String  @default("comment") // "praise", "confusion", "suggestion", "typo", "comment"
+
+  resolved   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([shareId, position])
 }
 
 model WritingRule {
